@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Math Teacher Platform</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root{--ink:#1b2733;--paper:#faf8f4;--panel:#fff;--line:#e2dcd0;--accent:#5a6fae;--accent-deep:#38447a;--good:#3e7d5a;--bad:#b0473e;--muted:#77706a;--radius:4px;font-family:'Iowan Old Style','Georgia',serif;}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);}
+header{background:var(--accent-deep);color:#f4f2ec;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;}
+header h1{font-size:1.25rem;margin:0;font-weight:600;}
+header .sub{font-size:.78rem;opacity:.75;font-family:sans-serif;}
+button{cursor:pointer;border:1px solid var(--accent-deep);background:var(--accent);color:#fff;border-radius:var(--radius);padding:7px 14px;font-size:.85rem;font-family:sans-serif;}
+button.secondary{background:transparent;color:var(--accent-deep);}
+button.danger{background:var(--bad);border-color:var(--bad);}
+nav{display:flex;gap:2px;background:var(--panel);border-bottom:1px solid var(--line);padding:0 18px;overflow-x:auto;}
+nav button.tab{background:none;border:none;color:var(--muted);padding:12px 14px;border-radius:0;border-bottom:2px solid transparent;font-family:sans-serif;font-size:.85rem;white-space:nowrap;}
+nav button.tab.active{color:var(--accent-deep);border-bottom-color:var(--accent);font-weight:600;}
+main{max-width:980px;margin:0 auto;padding:22px 18px 60px;}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;}
+.card h2{margin-top:0;font-size:1.05rem;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:18px;}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;text-align:center;}
+.stat .n{font-size:1.6rem;font-weight:700;color:var(--accent-deep);font-family:sans-serif;}
+.stat .l{font-size:.72rem;color:var(--muted);font-family:sans-serif;}
+table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:.85rem;}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);}
+th{color:var(--muted);font-weight:600;font-size:.75rem;}
+.row-form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.row-form input,.row-form select{padding:7px 9px;border:1px solid var(--line);border-radius:var(--radius);font-size:.85rem;}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.7rem;font-family:sans-serif;}
+.badge.off{background:#eef0f8;color:var(--accent-deep);}
+.badge.priv{background:#fdf2e3;color:#8a5a1e;}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.72rem;background:#f0ece2;color:var(--muted);font-family:sans-serif;}
+.alert{background:#fbeceb;border:1px solid #edc9c6;color:#7d302a;padding:10px 12px;border-radius:var(--radius);font-family:sans-serif;font-size:.83rem;margin-bottom:10px;}
+textarea{width:100%;min-height:70px;padding:8px;border:1px solid var(--line);border-radius:var(--radius);font-family:sans-serif;}
+.small{font-size:.78rem;color:var(--muted);font-family:sans-serif;}
+.qcard{border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.opt-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-family:sans-serif;font-size:.85rem;}
+.empty{color:var(--muted);font-family:sans-serif;font-size:.85rem;padding:14px 0;}
+.tag-diff{font-family:sans-serif;font-size:.72rem;color:#a88a2f;}
+.login-box{max-width:360px;margin:80px auto;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:26px;font-family:sans-serif;}
+.login-box input{width:100%;padding:9px;margin-bottom:10px;border:1px solid var(--line);border-radius:var(--radius);}
+.err{color:var(--bad);font-family:sans-serif;font-size:.83rem;margin-top:6px;}
+</style>
+</head>
+<body>
+<header id="app-header" style="display:none;">
+  <div><h1>Math Teacher Platform</h1><div class="sub" id="who-am-i"></div></div>
+  <div><button class="secondary" onclick="logout()" style="color:#fff;border-color:#fff;">Déconnexion</button></div>
+</header>
+<nav id="tabbar" style="display:none;"></nav>
+<main id="app"></main>
+
+<script>
+/* ============== CONNEXION SUPABASE (vraie base de données) ============== */
+const SUPABASE_URL = "https://mjbyogcoxfihvthyfdqx.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_-veTB71CEJuMqPxV1-beyA_0fb9aVAy";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let SESSION = null;
+let DB = { groups:[], students:[], memberships:[], lessons:[], questions:[], tests:[], testQuestions:[], attempts:[], answers:[] };
+let TAB = "dash";
+
+function renderMath(el){ if(window.renderMathInElement) renderMathInElement(el,{delimiters:[{left:"$",right:"$",display:false}]}); }
+function uid(){ return crypto.randomUUID(); }
+
+/* ============== AUTHENTIFICATION ============== */
+async function checkSession(){
+  const { data } = await sb.auth.getSession();
+  SESSION = data.session;
+  if(SESSION){ showApp(); await reloadAll(); render(); }
+  else showLogin();
+}
+function showLogin(err){
+  document.getElementById("app-header").style.display="none";
+  document.getElementById("tabbar").style.display="none";
+  document.getElementById("app").innerHTML = `
+  <div class="login-box">
+    <h2 style="font-family:'Iowan Old Style',serif;">Connexion enseignant</h2>
+    <input id="li-email" type="email" placeholder="Email">
+    <input id="li-pass" type="password" placeholder="Mot de passe">
+    <button onclick="doLogin()" style="width:100%;">Se connecter</button>
+    ${err ? `<div class="err">${err}</div>` : ""}
+  </div>`;
+}
+async function doLogin(){
+  const email = document.getElementById("li-email").value.trim();
+  const password = document.getElementById("li-pass").value;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error) return showLogin("Échec de connexion : " + error.message);
+  SESSION = data.session;
+  showApp(); await reloadAll(); render();
+}
+async function logout(){ await sb.auth.signOut(); SESSION=null; showLogin(); }
+function showApp(){
+  document.getElementById("app-header").style.display="flex";
+  document.getElementById("tabbar").style.display="flex";
+  document.getElementById("who-am-i").textContent = SESSION.user.email;
+}
+
+/* ============== CHARGEMENT DES DONNÉES (RLS filtre automatiquement) ============== */
+async function reloadAll(){
+  const [g, s, m, l, q, te, tq, at, an] = await Promise.all([
+    sb.from("groups").select("*"),
+    sb.from("students").select("*"),
+    sb.from("group_memberships").select("*"),
+    sb.from("lessons").select("*"),
+    sb.from("questions").select("*"),
+    sb.from("tests").select("*"),
+    sb.from("test_questions").select("*"),
+    sb.from("attempts").select("*"),
+    sb.from("answers").select("*"),
+  ]);
+  DB.groups = g.data || []; DB.students = s.data || []; DB.memberships = m.data || [];
+  DB.lessons = l.data || []; DB.questions = q.data || []; DB.tests = te.data || [];
+  DB.testQuestions = tq.data || []; DB.attempts = at.data || []; DB.answers = an.data || [];
+}
+
+/* ============== NAVIGATION ============== */
+const TABS = [["dash","Tableau de bord"],["groups","Groupes"],["students","Élèves"],["lessons","Leçons"],["questions","Banque de questions"],["tests","Tests"],["results","Résultats"]];
+function renderTabs(){
+  document.getElementById("tabbar").innerHTML = TABS.map(([id,label])=>
+    `<button class="tab ${TAB===id?'active':''}" data-tab="${id}">${label}</button>`).join("");
+  document.getElementById("tabbar").querySelectorAll("button").forEach(b=>b.onclick=()=>{TAB=b.dataset.tab; render();});
+}
+
+/* ============== VUES ============== */
+function groupStudentIds(groupId){ return DB.memberships.filter(m=>m.group_id===groupId).map(m=>m.student_id); }
+function studentGroups(studentId){ return DB.memberships.filter(m=>m.student_id===studentId).map(m=>DB.groups.find(g=>g.id===m.group_id)).filter(Boolean); }
+
+function viewDash(){
+  const moy = DB.attempts.length ? (DB.attempts.reduce((s,a)=>s+Number(a.pourcentage||0),0)/DB.attempts.length).toFixed(1) : "—";
+  return `<div class="grid">
+    <div class="stat"><div class="n">${DB.groups.length}</div><div class="l">Groupes</div></div>
+    <div class="stat"><div class="n">${DB.students.length}</div><div class="l">Élèves</div></div>
+    <div class="stat"><div class="n">${DB.lessons.length}</div><div class="l">Leçons</div></div>
+    <div class="stat"><div class="n">${DB.tests.length}</div><div class="l">Tests</div></div>
+    <div class="stat"><div class="n">${moy}${moy!=="—"?"%":""}</div><div class="l">Moyenne générale</div></div>
+  </div>
+  <div class="card"><h2>Points à revoir détectés</h2>${renderAlerts()}</div>`;
+}
+function renderAlerts(){
+  let alerts=[];
+  DB.tests.forEach(test=>{
+    const qids = DB.testQuestions.filter(tq=>tq.test_id===test.id).map(tq=>tq.question_id);
+    const attemptsOfTest = DB.attempts.filter(a=>a.test_id===test.id);
+    if(!attemptsOfTest.length) return;
+    qids.forEach(qid=>{
+      const q = DB.questions.find(x=>x.id===qid); if(!q) return;
+      let total=0, fail=0;
+      attemptsOfTest.forEach(a=>{
+        const ans = DB.answers.find(x=>x.attempt_id===a.id && x.question_id===qid);
+        if(ans){ total++; if(!ans.est_correcte) fail++; }
+      });
+      if(total>=1 && fail/total>0.5) alerts.push(`<div class="alert">« ${q.enonce.slice(0,60)} » — ${Math.round(fail/total*100)}% d'échec (test « ${test.titre} »). <b>Point à revoir avec le groupe.</b></div>`);
+    });
+  });
+  return alerts.length ? alerts.join("") : `<div class="empty">Aucun point critique détecté pour l'instant.</div>`;
+}
+
+function viewGroups(){
+  return `<div class="card"><h2>Créer un groupe</h2>
+    <div class="row-form">
+      <input id="g-nom" placeholder="Nom du groupe">
+      <select id="g-type"><option value="classe_officielle">Classe officielle</option><option value="cours_particulier">Cours particulier</option></select>
+      <input id="g-niveau" placeholder="Niveau"><input id="g-section" placeholder="Section">
+      <button onclick="createGroup()">Créer</button>
+    </div></div>
+  <div class="card"><h2>Mes groupes</h2>
+    ${DB.groups.length ? `<table><tr><th>Nom</th><th>Type</th><th>Niveau</th><th>Élèves</th><th></th></tr>
+    ${DB.groups.map(g=>`<tr><td>${g.nom}</td><td><span class="badge ${g.type==='classe_officielle'?'off':'priv'}">${g.type==='classe_officielle'?'Officielle':'Particulier'}</span></td>
+    <td>${g.niveau||''}</td><td>${groupStudentIds(g.id).length}</td>
+    <td><button class="danger" onclick="deleteGroup('${g.id}')">Supprimer</button></td></tr>`).join("")}</table>`
+    : `<div class="empty">Aucun groupe.</div>`}</div>`;
+}
+async function createGroup(){
+  const nom = document.getElementById("g-nom").value.trim();
+  if(!nom) return alert("Nom requis.");
+  const { error } = await sb.from("groups").insert({
+    id: uid(), teacher_id: SESSION.user.id, nom,
+    type: document.getElementById("g-type").value,
+    niveau: document.getElementById("g-niveau").value,
+    section: document.getElementById("g-section").value
+  });
+  if(error) return alert("Erreur : "+error.message);
+  await reloadAll(); render();
+}
+async function deleteGroup(id){
+  await sb.from("group_memberships").delete().eq("group_id", id);
+  await sb.from("groups").delete().eq("id", id);
+  await reloadAll(); render();
+}
+
+function viewStudents(){
+  return `<div class="card"><h2>Ajouter un élève</h2>
+    <div class="row-form">
+      <input id="s-nom" placeholder="Nom"><input id="s-prenom" placeholder="Prénom">
+      <select id="s-groupe">${DB.groups.map(g=>`<option value="${g.id}">${g.nom}</option>`).join("") || '<option disabled>Créez un groupe d\\'abord</option>'}</select>
+      <button onclick="createStudent()">Ajouter</button>
+    </div></div>
+  <div class="card"><h2>Mes élèves</h2>
+    ${DB.students.length ? `<table><tr><th>Nom</th><th>Groupe(s)</th><th>Tests réalisés</th><th></th></tr>
+    ${DB.students.map(s=>{
+      const gs = studentGroups(s.id).map(g=>g.nom).join(", ") || "—";
+      const att = DB.attempts.filter(a=>a.student_id===s.id);
+      return `<tr><td>${s.prenom} ${s.nom}</td><td>${gs}</td><td>${att.length}</td>
+      <td><button class="danger" onclick="deleteStudent('${s.id}')">Retirer</button></td></tr>`;
+    }).join("")}</table>` : `<div class="empty">Aucun élève.</div>`}</div>`;
+}
+async function createStudent(){
+  const nom = document.getElementById("s-nom").value.trim();
+  const prenom = document.getElementById("s-prenom").value.trim();
+  const groupId = document.getElementById("s-groupe").value;
+  if(!nom || !prenom) return alert("Nom et prénom requis.");
+  if(!groupId) return alert("Créez d'abord un groupe.");
+  const studentId = uid();
+  const { error } = await sb.from("students").insert({ id: studentId, nom, prenom });
+  if(error) return alert("Erreur : "+error.message);
+  await sb.from("group_memberships").insert({ id: uid(), group_id: groupId, student_id: studentId });
+  await reloadAll(); render();
+}
+async function deleteStudent(id){
+  await sb.from("group_memberships").delete().eq("student_id", id);
+  await sb.from("students").delete().eq("id", id);
+  await reloadAll(); render();
+}
+
+function viewLessons(){
+  return `<div class="card"><h2>Créer une leçon</h2>
+    <div class="row-form" style="flex-direction:column;align-items:stretch;">
+      <input id="l-titre" placeholder="Titre">
+      <textarea id="l-contenu" placeholder="Contenu (maths entre $...$, ex: $f'(x)=2x+3$)"></textarea>
+      <div><button onclick="createLesson()">Publier</button></div>
+    </div></div>
+  <div class="card"><h2>Mes leçons</h2>
+    ${DB.lessons.length ? DB.lessons.map(l=>`<div class="qcard"><b>${l.titre}</b>
+      <div class="small" style="margin:6px 0;">${(l.contenu||'').replace(/\\n/g,"<br>")}</div>
+      <button class="danger" onclick="deleteLesson('${l.id}')">Supprimer</button></div>`).join("")
+      : `<div class="empty">Aucune leçon.</div>`}</div>`;
+}
+async function createLesson(){
+  const titre = document.getElementById("l-titre").value.trim();
+  const contenu = document.getElementById("l-contenu").value.trim();
+  if(!titre || !contenu) return alert("Titre et contenu requis.");
+  const { error } = await sb.from("lessons").insert({ id: uid(), teacher_id: SESSION.user.id, titre, contenu, statut:"publie" });
+  if(error) return alert("Erreur : "+error.message);
+  await reloadAll(); render();
+}
+async function deleteLesson(id){ await sb.from("lessons").delete().eq("id", id); await reloadAll(); render(); }
+
+function labelType(t){ return {numerique:"Numérique", qcm_unique:"QCM unique", qcm_multiple:"QCM multiple"}[t]; }
+function viewQuestions(){
+  return `<div class="card"><h2>Créer une question</h2>
+    <div class="row-form" style="flex-direction:column;align-items:stretch;">
+      <input id="q-enonce" placeholder="Énoncé (ex: Résoudre $2x+5=13$)">
+      <select id="q-type" onchange="toggleQOptions()">
+        <option value="numerique">Réponse numérique</option>
+        <option value="qcm_unique">QCM (une bonne réponse)</option>
+        <option value="qcm_multiple">QCM (plusieurs bonnes réponses)</option>
+      </select>
+      <input id="q-reponse" placeholder="Réponse attendue (si numérique)">
+      <div id="q-options-box"></div>
+      <input id="q-hint1" placeholder="Indice 1 (optionnel)">
+      <input id="q-hint2" placeholder="Indice 2 (optionnel)">
+      <select id="q-diff"><option value="1">★ Facile</option><option value="2">★★ Moyen</option><option value="3">★★★ Difficile</option><option value="4">★★★★ Très difficile</option></select>
+      <div><button onclick="createQuestion()">Ajouter à la banque</button></div>
+    </div></div>
+  <div class="card"><h2>Banque (${DB.questions.length})</h2>
+    ${DB.questions.length ? DB.questions.map(q=>`<div class="qcard">
+      <div>${q.enonce} <span class="tag-diff">${'★'.repeat(q.difficulte||1)}</span> <span class="pill">${labelType(q.type)}</span></div>
+      <div class="small">${q.type==='numerique' ? 'Réponse: '+q.reponse : (q.options||[]).map(o=>o.texte+(o.correct?' ✓':'')).join(" · ")}</div>
+      <button class="danger" onclick="deleteQuestion('${q.id}')">Supprimer</button></div>`).join("")
+      : `<div class="empty">Banque vide.</div>`}</div>`;
+}
+function toggleQOptions(){
+  const type = document.getElementById("q-type").value;
+  const box = document.getElementById("q-options-box");
+  if(type==="numerique"){ box.innerHTML=""; return; }
+  box.innerHTML = [0,1,2,3].map(i=>`<div class="opt-row"><input type="text" class="opt-text" placeholder="Proposition ${i+1}">
+    <label class="small"><input type="checkbox" class="opt-correct"> correcte</label></div>`).join("");
+}
+async function createQuestion(){
+  const enonce = document.getElementById("q-enonce").value.trim();
+  const type = document.getElementById("q-type").value;
+  const difficulte = parseInt(document.getElementById("q-diff").value);
+  const hints = [document.getElementById("q-hint1").value, document.getElementById("q-hint2").value].filter(Boolean);
+  if(!enonce) return alert("Énoncé requis.");
+  let payload = { id: uid(), enonce, type, difficulte, hints };
+  if(type==="numerique"){
+    const rep = document.getElementById("q-reponse").value.trim();
+    if(!rep) return alert("Indiquez la réponse attendue.");
+    payload.reponse = rep;
+  } else {
+    const texts = [...document.querySelectorAll(".opt-text")].map(x=>x.value.trim());
+    const corrects = [...document.querySelectorAll(".opt-correct")].map(x=>x.checked);
+    if(texts.some(t=>!t)) return alert("Remplissez les 4 propositions.");
+    if(!corrects.some(Boolean)) return alert("Cochez au moins une bonne réponse.");
+    payload.options = texts.map((texte,i)=>({texte, correct:corrects[i]}));
+  }
+  const { error } = await sb.from("questions").insert(payload);
+  if(error) return alert("Erreur : "+error.message);
+  await reloadAll(); render();
+}
+async function deleteQuestion(id){ await sb.from("questions").delete().eq("id", id); await reloadAll(); render(); }
+
+function viewTests(){
+  return `<div class="card"><h2>Créer un test</h2>
+    <div class="row-form" style="flex-direction:column;align-items:stretch;">
+      <input id="te-titre" placeholder="Titre">
+      <select id="te-groupe">${DB.groups.map(g=>`<option value="${g.id}">${g.nom}</option>`).join("") || '<option disabled>Créez un groupe</option>'}</select>
+      <input id="te-duree" type="number" value="30" placeholder="Durée (min)">
+      <div class="small">Questions à inclure :</div>
+      <div>${DB.questions.map(q=>`<label class="small" style="display:block;padding:4px 0;"><input type="checkbox" class="te-q" value="${q.id}"> ${q.enonce}</label>`).join("") || '<span class="empty">Banque vide.</span>'}</div>
+      <div><button onclick="createTest()">Publier</button></div>
+    </div></div>
+  <div class="card"><h2>Tests publiés</h2>
+    ${DB.tests.length ? `<table><tr><th>Titre</th><th>Groupe</th><th>Questions</th><th></th></tr>
+    ${DB.tests.map(te=>{
+      const g = DB.groups.find(x=>x.id===te.group_id);
+      const n = DB.testQuestions.filter(tq=>tq.test_id===te.id).length;
+      return `<tr><td>${te.titre}</td><td>${g?g.nom:'—'}</td><td>${n}</td>
+      <td><button class="danger" onclick="deleteTest('${te.id}')">Supprimer</button></td></tr>`;
+    }).join("")}</table>` : `<div class="empty">Aucun test.</div>`}</div>`;
+}
+async function createTest(){
+  const titre = document.getElementById("te-titre").value.trim();
+  const groupId = document.getElementById("te-groupe").value;
+  const duree = parseInt(document.getElementById("te-duree").value)||30;
+  const qids = [...document.querySelectorAll(".te-q:checked")].map(x=>x.value);
+  if(!titre) return alert("Titre requis.");
+  if(!groupId) return alert("Créez d'abord un groupe.");
+  if(!qids.length) return alert("Sélectionnez au moins une question.");
+  const testId = uid();
+  const { error } = await sb.from("tests").insert({ id: testId, teacher_id: SESSION.user.id, group_id: groupId, titre, duree_minutes: duree, statut:"publie" });
+  if(error) return alert("Erreur : "+error.message);
+  await sb.from("test_questions").insert(qids.map((qid,i)=>({ id: uid(), test_id: testId, question_id: qid, points:1, ordre:i })));
+  await reloadAll(); render();
+}
+async function deleteTest(id){
+  await sb.from("test_questions").delete().eq("test_id", id);
+  await sb.from("tests").delete().eq("id", id);
+  await reloadAll(); render();
+}
+
+function viewResults(){
+  if(!DB.tests.length) return `<div class="card"><div class="empty">Aucun test publié.</div></div>`;
+  return DB.tests.map(te=>{
+    const g = DB.groups.find(x=>x.id===te.group_id);
+    const attempts = DB.attempts.filter(a=>a.test_id===te.id);
+    const moy = attempts.length ? (attempts.reduce((s,a)=>s+Number(a.pourcentage||0),0)/attempts.length).toFixed(1) : "—";
+    const best = attempts.length ? Math.max(...attempts.map(a=>Number(a.pourcentage||0))).toFixed(0) : "—";
+    return `<div class="card"><h2>${te.titre} <span class="pill">${g?g.nom:'—'}</span></h2>
+      <div class="grid">
+        <div class="stat"><div class="n">${attempts.length}</div><div class="l">Tentatives</div></div>
+        <div class="stat"><div class="n">${moy}${moy!=='—'?'%':''}</div><div class="l">Moyenne</div></div>
+        <div class="stat"><div class="n">${best}${best!=='—'?'%':''}</div><div class="l">Meilleur score</div></div>
+      </div>
+      ${attempts.length ? `<table><tr><th>Élève</th><th>%</th></tr>
+      ${attempts.map(a=>{
+        const s = DB.students.find(x=>x.id===a.student_id);
+        return `<tr><td>${s?s.prenom+' '+s.nom:'—'}</td><td>${Number(a.pourcentage||0).toFixed(0)}%</td></tr>`;
+      }).join("")}</table>` : `<div class="empty">Pas encore de tentative.</div>`}
+    </div>`;
+  }).join("");
+}
+
+function render(){
+  renderTabs();
+  const app = document.getElementById("app");
+  const views = {dash:viewDash, groups:viewGroups, students:viewStudents, lessons:viewLessons, questions:viewQuestions, tests:viewTests, results:viewResults};
+  app.innerHTML = (views[TAB]||viewDash)();
+  if(TAB==="questions") toggleQOptions();
+  renderMath(app);
+}
+
+checkSession();
+</script>
+</body>
+</html>
