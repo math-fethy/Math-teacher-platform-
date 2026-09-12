@@ -200,7 +200,7 @@ function viewStudents(){
   return `<div class="card"><h2>Ajouter un élève</h2>
     <div class="row-form">
       <input id="s-nom" placeholder="Nom"><input id="s-prenom" placeholder="Prénom">
-      <select id="s-groupe">${DB.groups.map(g=>`<option value="${g.id}">${g.nom}</option>`).join("") || '<option disabled>Créez un groupe d\\'abord</option>'}</select>
+      <select id="s-groupe">${DB.groups.map(g=>`<option value="${g.id}">${g.nom}</option>`).join("") || '<option disabled>Veuillez créer un groupe</option>'}</select>
       <button onclick="createStudent()">Ajouter</button>
     </div></div>
   <div class="card"><h2>Mes élèves</h2>
