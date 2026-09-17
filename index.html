@@ -235,19 +235,33 @@ function viewLessons(){
     <div class="row-form" style="flex-direction:column;align-items:stretch;">
       <input id="l-titre" placeholder="Titre">
       <textarea id="l-contenu" placeholder="Contenu (maths entre $...$, ex: $f'(x)=2x+3$)"></textarea>
+      <div class="small">Fichier joint (PDF, optionnel) :</div>
+      <input id="l-fichier" type="file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg">
       <div><button onclick="createLesson()">Publier</button></div>
     </div></div>
   <div class="card"><h2>Mes leçons</h2>
     ${DB.lessons.length ? DB.lessons.map(l=>`<div class="qcard"><b>${l.titre}</b>
-      <div class="small" style="margin:6px 0;">${(l.contenu||'').replace(/\\n/g,"<br>")}</div>
+      <div class="small" style="margin:6px 0;">${(l.contenu||'').replace(/\n/g,"<br>")}</div>
+      ${l.fichier_url ? `<div style="margin:6px 0;"><a href="${l.fichier_url}" target="_blank" download>Télécharger : ${l.fichier_nom||'fichier'}</a></div>` : ""}
       <button class="danger" onclick="deleteLesson('${l.id}')">Supprimer</button></div>`).join("")
       : `<div class="empty">Aucune leçon.</div>`}</div>`;
 }
 async function createLesson(){
   const titre = document.getElementById("l-titre").value.trim();
   const contenu = document.getElementById("l-contenu").value.trim();
+  const fileInput = document.getElementById("l-fichier");
   if(!titre || !contenu) return alert("Titre et contenu requis.");
-  const { error } = await sb.from("lessons").insert({ id: uid(), teacher_id: SESSION.user.id, titre, contenu, statut:"publie" });
+  let fichier_url = null, fichier_nom = null;
+  if(fileInput.files && fileInput.files[0]){
+    const file = fileInput.files[0];
+    const path = SESSION.user.id + "/" + Date.now() + "-" + file.name;
+    const { error: upErr } = await sb.storage.from("cours-fichiers").upload(path, file);
+    if(upErr) return alert("Erreur d'envoi du fichier : "+upErr.message);
+    const { data: pub } = sb.storage.from("cours-fichiers").getPublicUrl(path);
+    fichier_url = pub.publicUrl;
+    fichier_nom = file.name;
+  }
+  const { error } = await sb.from("lessons").insert({ id: uid(), teacher_id: SESSION.user.id, titre, contenu, statut:"publie", fichier_url, fichier_nom });
   if(error) return alert("Erreur : "+error.message);
   await reloadAll(); render();
 }
